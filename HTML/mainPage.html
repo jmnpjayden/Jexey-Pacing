@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<!-- Head Of The Webpage -->
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/CSS/mainPage.css">
+    <title>Main Page</title>
+</head>
+
+<!-- Body Of The Webpage -->
+
+<body>
+    <!-- Athlete Information -->
+    <h1>Athlete Information</h1>
+    <div id="displayData"></div>
+    
+    <!-- Splits Display Information -->
+    <div id="splitsDisplay" class="splits-container">
+        Loading stats...
+    </div>
+    <br>
+    <button onclick="clearData()">Clear Data & Go Back</button>    
+
+    <script>
+        const API_URL = 'http://127.0.0.1:5000';
+
+    let isLoading = false;
+
+
+    // ============================================================
+    // Load Athlete Data
+    // ============================================================
+
+    async function loadData() {
+
+        // Prevent loadData from running multiple times
+        if (isLoading) {
+            console.log("loadData already running - ignoring duplicate call.");
+            return;
+        }
+
+        isLoading = true;
+
+        try {
+
+            const storedData = localStorage.getItem('athleteData');
+
+            // ----------------------------------------------------
+            // No athlete data
+            // ----------------------------------------------------
+
+            if (!storedData) {
+
+                document.getElementById('displayData').innerHTML =
+                    '<p>No data found. Please fill out the form first.</p>';
+
+                document.getElementById('splitsDisplay').innerHTML = '';
+
+                return;
+            }
+
+
+            const athleteData = JSON.parse(storedData);
+
+
+            // ----------------------------------------------------
+            // Display Athlete Information
+            // ----------------------------------------------------
+
+            document.getElementById('displayData').innerHTML = `
+                <p><strong>Athlete Name:</strong> ${athleteData.aname}</p>
+                <p><strong>Event Name:</strong> ${athleteData.ename}</p>
+                <p><strong>Time:</strong> ${athleteData.time} seconds</p>
+            `;
+
+
+            // ----------------------------------------------------
+            // Create unique key for this submission
+            // ----------------------------------------------------
+
+            const saveKey =
+                `saved_${athleteData.aname}_${athleteData.ename}_${athleteData.time}`;
+
+
+            // ----------------------------------------------------
+            // Save result to Flask
+            // ----------------------------------------------------
+
+            const alreadySaved = localStorage.getItem(saveKey);
+
+            if (!alreadySaved) {
+
+                try {
+
+                    console.log("Checking Flask server...");
+
+                    const testResponse =
+                        await fetch(`${API_URL}/api/test`);
+
+
+                    if (testResponse.ok) {
+
+                        console.log("Flask server is online.");
+
+                        const addResponse =
+                            await fetch(`${API_URL}/api/add_time`, {
+
+                                method: 'POST',
+
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+
+                                body: JSON.stringify(athleteData)
+
+                            });
+
+
+                        const result =
+                            await addResponse.json();
+
+
+                        if (result.status === 'success') {
+
+                            localStorage.setItem(
+                                saveKey,
+                                'true'
+                            );
+
+                            document.getElementById('displayData').innerHTML +=
+                                '<div class="success">✓ Data saved to CSV!</div>';
+
+                            console.log("Result saved successfully.");
+
+                        } else {
+
+                            document.getElementById('displayData').innerHTML +=
+                                `<div class="error">⚠️ Could not save data: ${result.message}</div>`;
+
+                        }
+
+                    }
+
+                } catch (error) {
+
+                    console.error(
+                        'Error saving:',
+                        error
+                    );
+
+                    document.getElementById('displayData').innerHTML +=
+                        '<div class="error">⚠️ Server is offline. ⚠️</div>';
+
+                }
+
+            } else {
+
+                document.getElementById('displayData').innerHTML +=
+                    '<div class="success">✓ Data already saved (duplicate prevented)</div>';
+
+            }
+
+
+            // ====================================================
+            // Get Predictions
+            // ====================================================
+
+            const predictionKey =
+                `prediction_${athleteData.aname}_${athleteData.ename}_${athleteData.time}`;
+
+
+            // Check whether predictions were already calculated
+            const savedPredictions =
+                localStorage.getItem(predictionKey);
+
+
+            if (savedPredictions) {
+
+                console.log(
+                    "Using previously calculated predictions."
+                );
+
+                const predictions =
+                    JSON.parse(savedPredictions);
+
+                displaySplits(
+                    athleteData.ename,
+                    predictions
+                );
+
+            } else {
+
+                // ------------------------------------------------
+                // Ask Flask for predictions
+                // ------------------------------------------------
+
+                try {
+
+                    console.log(
+                        "Requesting predictions from Flask..."
+                    );
+
+                    const predictResponse =
+                        await fetch(
+                            `${API_URL}/api/predict_splits`,
+                            {
+                                method: 'POST',
+
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+
+                                body: JSON.stringify({
+                                    aname: athleteData.aname,
+                                    ename: athleteData.ename,
+                                    time: athleteData.time
+                                })
+                            }
+                        );
+
+
+                    if (!predictResponse.ok) {
+
+                        throw new Error(
+                            `Prediction request failed: ${predictResponse.status}`
+                        );
+
+                    }
+
+
+                    const predictions =
+                        await predictResponse.json();
+
+
+                    // Save predictions locally
+                    localStorage.setItem(
+                        predictionKey,
+                        JSON.stringify(predictions)
+                    );
+
+
+                    console.log(
+                        "Predictions received:",
+                        predictions
+                    );
+
+
+                    // Display predictions
+                    displaySplits(
+                        athleteData.ename,
+                        predictions
+                    );
+
+
+                } catch (error) {
+
+                    console.error(
+                        'Error getting predictions:',
+                        error
+                    );
+
+
+                    document.getElementById(
+                        'splitsDisplay'
+                    ).innerHTML = `
+
+                        <div class="error">
+
+                            <strong>⚠️ Could not get predictions</strong>
+                            <br>
+
+                            Make sure Python server is running.
+
+                        </div>
+
+                    `;
+
+
+                    showBasicSplits(
+                        athleteData.ename,
+                        parseFloat(athleteData.time)
+                    );
+
+                }
+
+            }
+
+        } finally {
+
+            isLoading = false;
+
+        }
+
+    }
+
+
+    // ============================================================
+    // Basic Split Calculations
+    // ============================================================
+
+    function showBasicSplits(
+        eventName,
+        totalTime
+    ) {
+
+        let html =
+            '<h2>Basic Splits (No ML)</h2>';
+
+
+        if (eventName === '400m') {
+
+            const per100m =
+                totalTime / 4;
+
+
+            html += `
+                <div class="split-item">
+                    <strong>100m:</strong>
+                    ${per100m.toFixed(2)} seconds
+                </div>
+            `;
+
+
+            html += `
+                <div class="split-item">
+                    <strong>200m:</strong>
+                    ${(per100m * 2).toFixed(2)} seconds
+                </div>
+            `;
+
+
+            html += `
+                <div class="split-item">
+                    <strong>300m:</strong>
+                    ${(per100m * 3).toFixed(2)} seconds
+                </div>
+            `;
+
+        }
+
+
+        else if (eventName === '200m') {
+
+            html += `
+                <div class="split-item">
+                    <strong>100m:</strong>
+                    ${(totalTime / 2).toFixed(2)} seconds
+                </div>
+            `;
+
+        }
+
+
+        else if (eventName === '100m') {
+
+            html += `
+                <div class="split-item">
+                    <strong>60m:</strong>
+                    ${(totalTime * 0.6).toFixed(2)} seconds
+                </div>
+            `;
+
+
+            html += `
+                <div class="split-item">
+                    <strong>50m:</strong>
+                    ${(totalTime / 2).toFixed(2)} seconds
+                </div>
+            `;
+
+        }
+
+
+        document.getElementById(
+            'splitsDisplay'
+        ).innerHTML = html;
+
+    }
+
+
+    // ============================================================
+    // Display Predictions
+    // ============================================================
+
+    function displaySplits(
+        eventName,
+        splits
+    ) {
+
+        let html =
+            '<h2>Split Predictions</h2>';
+
+
+        if (eventName === '400m') {
+
+            if (splits['100m']) {
+
+                html += `
+                    <div class="split-item">
+                        <strong>100m Split:</strong>
+                        ${splits['100m']} seconds
+                    </div>
+                `;
+
+            }
+
+
+            if (splits['200m']) {
+
+                html += `
+                    <div class="split-item">
+                        <strong>200m Split:</strong>
+                        ${splits['200m']} seconds
+                    </div>
+                `;
+
+            }
+
+
+            if (splits['300m']) {
+
+                html += `
+                    <div class="split-item">
+                        <strong>300m Split:</strong>
+                        ${splits['300m']} seconds
+                    </div>
+                `;
+
+            }
+
+        }
+
+
+        else if (eventName === '200m') {
+
+            if (splits['100m']) {
+
+                html += `
+                    <div class="split-item">
+                        <strong>100m Split:</strong>
+                        ${splits['100m']} seconds
+                    </div>
+                `;
+
+            }
+
+        }
+
+
+        else if (eventName === '100m') {
+
+            if (splits['60m']) {
+
+                html += `
+                    <div class="split-item">
+                        <strong>60m Split:</strong>
+                        ${splits['60m']} seconds
+                    </div>
+                `;
+
+            }
+
+
+            if (splits['50m']) {
+
+                html += `
+                    <div class="split-item">
+                        <strong>50m Split:</strong>
+                        ${splits['50m']} seconds
+                    </div>
+                `;
+
+            }
+
+
+            if (splits['predicted_200m']) {
+
+                html += `
+                    <div class="split-item">
+                        <strong>Predicted 200m:</strong>
+                        ${splits['predicted_200m']} seconds
+                    </div>
+                `;
+
+            }
+
+
+            if (splits['predicted_400m']) {
+
+                html += `
+                    <div class="split-item">
+                        <strong>Predicted 400m:</strong>
+                        ${splits['predicted_400m']} seconds
+                    </div>
+                `;
+
+            }
+
+        }
+
+
+        document.getElementById(
+            'splitsDisplay'
+        ).innerHTML = html;
+
+    }
+
+
+    // ============================================================
+    // Clear Data
+    // ============================================================
+
+    function clearData() {
+
+        // Remove athlete information
+        localStorage.removeItem(
+            'athleteData'
+        );
+
+
+        // Remove saved submission flags
+        const keys =
+            Object.keys(localStorage);
+
+
+        keys.forEach(key => {
+
+            if (
+                key.startsWith('saved_') ||
+                key.startsWith('prediction_')
+            ) {
+
+                localStorage.removeItem(key);
+
+            }
+
+        });
+
+
+        // Return to form
+        window.location.href =
+            "frontPage.html";
+
+    }
+
+
+    // ============================================================
+    // Start Application
+    // ============================================================
+
+    loadData();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/CSS/frontPage.css">
+    <title>Jexey Pacing | Track Your Results</title>
+</head>
+
+<body>
+
+    <!-- Navigation Bar -->
+
+    <!-- Hero Image Section -->
+    <div class="hero-section">
+        <div class="hero-overlay"></div>
+        <img src="https://www.sport.cam.ac.uk/sites/default/files/styles/leading/public/52856748158_f74428a7a9_o.jpg?itok=c9e3rU3p" alt="Track and field" class="hero-image">
+        <div class="hero-text">
+            <h1>Jexey Pacing</h1>
+            <p>'Track your results, and envision your future splits.'</p>
+        </div>
+    </div>
+
+    <!-- Form Container -->
+    <div class="form-container">
+        <div class="form-card">
+            <h2>Enter Your Performance</h2>
+            <p class="form-subtitle">Record your latest race time</p>
+            
+            <form id="athleteForm">
+                <div class="form-group">
+                    <label for="aname">Athlete Name</label>
+                    <input type="text" id="aname" placeholder="e.g., Usain Bolt" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Event Distance</label>
+                    <div class="radio-group">
+                        <label class="radio-label">
+                            <input type="radio" name="ename" value="100m" required>
+                            <span class="radio-custom"></span>
+                            100m
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="ename" value="200m">
+                            <span class="radio-custom"></span>
+                            200m
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="ename" value="400m">
+                            <span class="radio-custom"></span>
+                            400m
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="time">Time (seconds)</label>
+                    <input type="number" id="time" step="any" placeholder="e.g., 10.95" required>
+                </div>
+
+                <button type="submit" class="submit-btn">
+                    <span>Submit Result</span>
+                    <span class="btn-icon">→</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const athleteForm = document.getElementById('athleteForm');
+
+    athleteForm.addEventListener('submit', function(event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        console.log("Form submitted - preventing refresh");
+
+        const selectedEvent = document.querySelector('input[name="ename"]:checked');
+        const athleteName = document.getElementById('aname').value.trim();
+        const timeValue = document.getElementById('time').value;
+
+        if (!athleteName) {
+            alert('Please enter an athlete name');
+            return;
+        }
+
+        if (!selectedEvent) {
+            alert('Please select an event');
+            return;
+        }
+
+        if (!timeValue) {
+            alert('Please enter a time');
+            return;
+        }
+
+        const athleteData = {
+            aname: athleteName,
+            ename: selectedEvent.value,
+            time: timeValue
+        };
+
+        console.log("Saving to localStorage:", athleteData);
+
+        localStorage.setItem(
+            'athleteData',
+            JSON.stringify(athleteData)
+        );
+
+        // Prevent accidental double-clicks
+        const submitButton = athleteForm.querySelector('.submit-btn');
+        submitButton.disabled = true;
+        submitButton.querySelector('span:first-child').textContent = 'Loading...';
+
+        console.log("Redirecting to main page...");
+
+        window.location.replace('mainPage.html');
+        });
+    </script>
+</body>
+
+</html>

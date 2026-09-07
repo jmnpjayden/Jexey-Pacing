@@ -1,0 +1,16 @@
+venv/
+Scripts/sklearn-env/
+__pycache__/
+*.py[cod]
+*$py.class
+timeTrials.csv
+.env
+.env.*
+!.env.example
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.egg-info/
+dist/
+build/
